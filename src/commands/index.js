@@ -1,5 +1,5 @@
 import { bot } from '../config/bot.js';
-import { saveActivity, getActivity, updateActivity, getAllActivities, getActivityHistory } from '../services/activityService.js';
+import { saveActivity, getActivity, updateActivity, getAllActivities, getCompletedActivities } from '../services/activityService.js';
 import { createTeam, addToTeam, getTeamRanking } from '../services/teamService.js';
 import { generateStatistics, generateGraph } from '../services/statisticsService.js';
 import { exportActivityData } from '../services/exportService.js';
@@ -57,7 +57,7 @@ Bon jeu !
 
   addparticipant: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [, activityId, participantName] = match;
+    const [ activityId, participantName] = match;
     
     if (!activityId || !participantName) {
       return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et le nom du participant.");
@@ -349,7 +349,7 @@ Bon jeu !
   history: async (msg) => {
     const chatId = msg.chat.id;
     try {
-      const history = await getActivityHistory();
+      const history = await getCompletedActivities();
       bot.sendMessage(chatId, `Historique des activités terminées:\n\n${history.join('\n')}`);
     } catch (error) {
       console.error('Error getting activity history:', error);
