@@ -1,7 +1,8 @@
+// feedbackService.js
 import { Activity } from '../models/activity.js';
 
-export const saveFeedback = async (activityId, username, message) => {
-  const activity = await Activity.findById(activityId);
+export const saveFeedback = async (activityId, username, message, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -12,8 +13,8 @@ export const saveFeedback = async (activityId, username, message) => {
   return await activity.save();
 };
 
-export const getFeedback = async (activityId) => {
-  const activity = await Activity.findById(activityId);
+export const getFeedback = async (activityId, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }

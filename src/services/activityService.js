@@ -1,24 +1,24 @@
 import { Activity } from '../models/activity.js';
 
-export const saveActivity = async (activityData) => {
-  const activity = new Activity(activityData);
+export const saveActivity = async (activityData, chatId) => {
+  const activity = new Activity({ ...activityData, chatId });
   return await activity.save();
 };
 
-export const getActivity = async (id) => {
-  return await Activity.findById(id);
+export const getActivity = async (id, chatId) => {
+  return await Activity.findOne({ _id: id, chatId });
 };
 
-export const getAllActivities = async () => {
-  return await Activity.find();
+export const getAllActivities = async (chatId) => {
+  return await Activity.find({ chatId });
 };
 
-export const updateActivity = async (id, updateData) => {
-  return await Activity.findByIdAndUpdate(id, updateData, { new: true });
+export const updateActivity = async (id, updateData, chatId) => {
+  return await Activity.findOneAndUpdate({ _id: id, chatId }, updateData, { new: true });
 };
 
-export const addParticipant = async (activityId, participantName) => {
-  const activity = await Activity.findById(activityId);
+export const addParticipant = async (activityId, participantName, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -29,8 +29,8 @@ export const addParticipant = async (activityId, participantName) => {
   return activity;
 };
 
-export const addSubActivity = async (activityId, subActivityName) => {
-  const activity = await Activity.findById(activityId);
+export const addSubActivity = async (activityId, subActivityName, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -38,8 +38,8 @@ export const addSubActivity = async (activityId, subActivityName) => {
   return await activity.save();
 };
 
-export const addScore = async (activityId, participantName, subActivityName, score) => {
-  const activity = await Activity.findById(activityId);
+export const addScore = async (activityId, participantName, subActivityName, score, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -51,9 +51,8 @@ export const addScore = async (activityId, participantName, subActivityName, sco
   return await activity.save();
 };
 
-// Nouvelles fonctions pour la gestion des équipes
-export const createTeam = async (activityId, teamName) => {
-  const activity = await Activity.findById(activityId);
+export const createTeam = async (activityId, teamName, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -64,8 +63,8 @@ export const createTeam = async (activityId, teamName) => {
   return await activity.save();
 };
 
-export const addParticipantToTeam = async (activityId, teamName, participantName) => {
-  const activity = await Activity.findById(activityId);
+export const addParticipantToTeam = async (activityId, teamName, participantName, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -79,9 +78,8 @@ export const addParticipantToTeam = async (activityId, teamName, participantName
   return await activity.save();
 };
 
-// Fonction pour obtenir le classement des équipes
-export const getTeamRanking = async (activityId) => {
-  const activity = await Activity.findById(activityId);
+export const getTeamRanking = async (activityId, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -101,9 +99,8 @@ export const getTeamRanking = async (activityId) => {
     .map(([name, score], index) => ({ rank: index + 1, name, score }));
 };
 
-// Fonction pour ajouter un feedback
-export const addFeedback = async (activityId, username, message) => {
-  const activity = await Activity.findById(activityId);
+export const addFeedback = async (activityId, username, message, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -114,9 +111,8 @@ export const addFeedback = async (activityId, username, message) => {
   return await activity.save();
 };
 
-// Fonction pour marquer une activité comme terminée
-export const completeActivity = async (activityId) => {
-  const activity = await Activity.findById(activityId);
+export const completeActivity = async (activityId, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -125,7 +121,6 @@ export const completeActivity = async (activityId) => {
   return await activity.save();
 };
 
-// Fonction pour obtenir l'historique des activités terminées
-export const getCompletedActivities = async () => {
-  return await Activity.find({ status: 'completed' }).sort({ endDate: -1 });
+export const getCompletedActivities = async (chatId) => {
+  return await Activity.find({ status: 'completed', chatId }).sort({ endDate: -1 });
 };

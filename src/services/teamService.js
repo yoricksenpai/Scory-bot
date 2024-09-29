@@ -1,7 +1,8 @@
+// teamService.js
 import { Activity } from '../models/activity.js';
 
-export const createTeam = async (activityId, teamName) => {
-  const activity = await Activity.findById(activityId);
+export const createTeam = async (activityId, teamName, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -12,8 +13,8 @@ export const createTeam = async (activityId, teamName) => {
   return await activity.save();
 };
 
-export const addToTeam = async (activityId, teamName, participantName) => {
-  const activity = await Activity.findById(activityId);
+export const addToTeam = async (activityId, teamName, participantName, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }
@@ -27,8 +28,8 @@ export const addToTeam = async (activityId, teamName, participantName) => {
   return await activity.save();
 };
 
-export const getTeamRanking = async (activityId) => {
-  const activity = await Activity.findById(activityId);
+export const getTeamRanking = async (activityId, chatId) => {
+  const activity = await Activity.findOne({ _id: activityId, chatId });
   if (!activity) {
     throw new Error('Activity not found');
   }

@@ -6,6 +6,10 @@ const activitySchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  chatId: {
+    type: String,
+    required: true
+  },
   participants: [{
     type: String,
     trim: true

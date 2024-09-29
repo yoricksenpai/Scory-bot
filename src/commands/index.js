@@ -30,30 +30,30 @@ Bon jeu !
 },
 
 
-  createactivity: async (msg, match) => {
-    const chatId = msg.chat.id;
-    const activityName = match[1];
-    
-    if (!activityName) {
-      return bot.sendMessage(chatId, "Veuillez fournir un nom pour l'activité.");
-    }
-    
-    try {
-      const newActivity = {
-        name: activityName,
-        participants: [],
-        teams: [],
-        subActivities: [],
-        scores: {},
-        duration: { type: 'indefinite' }
-      };
-      const result = await saveActivity(newActivity);
-      bot.sendMessage(chatId, `Activité "${activityName}" créée avec succès! Son ID est ${result._id}`);
-    } catch (error) {
-      console.error('Error creating activity:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la création de l'activité.");
-    }
-  },
+ createactivity: async (msg, match) => {
+  const chatId = msg.chat.id;
+  const activityName = match[1];
+  
+  if (!activityName) {
+    return bot.sendMessage(chatId, "Veuillez fournir un nom pour l'activité.");
+  }
+  
+  try {
+    const newActivity = {
+      name: activityName,
+      participants: [],
+      teams: [],
+      subActivities: [],
+      scores: {},
+      duration: { type: 'indefinite' }
+    };
+    const result = await saveActivity(newActivity, chatId);
+    bot.sendMessage(chatId, `Activité "${activityName}" créée avec succès! Son ID est ${result._id}`);
+  } catch (error) {
+    console.error('Error creating activity:', error);
+    bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la création de l'activité.");
+  }
+},
 
   addparticipant: async (msg, match) => {
     const chatId = msg.chat.id;
@@ -240,22 +240,22 @@ Bon jeu !
     }
   },
 
-  createteam: async (msg, match) => {
-    const chatId = msg.chat.id;
-    const teamName = match[1];
-    
-    if (!teamName) {
-      return bot.sendMessage(chatId, "Veuillez fournir un nom pour l'équipe.");
-    }
-    
-    try {
-      const result = await createTeam(teamName);
-      bot.sendMessage(chatId, `Équipe "${teamName}" créée avec succès! Son ID est ${result._id}`);
-    } catch (error) {
-      console.error('Error creating team:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la création de l'équipe.");
-    }
-  },
+createteam: async (msg, match) => {
+  const chatId = msg.chat.id;
+  const [, activityId, teamName] = match;
+  
+  if (!activityId || !teamName) {
+    return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et le nom de l'équipe.");
+  }
+  
+  try {
+    await createTeam(activityId, teamName, chatId);
+    bot.sendMessage(chatId, `Équipe "${teamName}" créée avec succès!`);
+  } catch (error) {
+    console.error('Error creating team:', error);
+    bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la création de l'équipe.");
+  }
+},
 
   addtoteam: async (msg, match) => {
     const chatId = msg.chat.id;
@@ -329,22 +329,22 @@ Bon jeu !
     }
   },
 
-  feedback: async (msg, match) => {
-    const chatId = msg.chat.id;
-    const [, activityId, feedbackMessage] = match;
-    
-    if (!activityId || !feedbackMessage) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et votre feedback.");
-    }
-    
-    try {
-      await saveFeedback(activityId, feedbackMessage);
-      bot.sendMessage(chatId, "Merci pour votre feedback!");
-    } catch (error) {
-      console.error('Error saving feedback:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'enregistrement du feedback.");
-    }
-  },
+feedback: async (msg, match) => {
+  const chatId = msg.chat.id;
+  const [, activityId, feedbackMessage] = match;
+  
+  if (!activityId || !feedbackMessage) {
+    return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et votre feedback.");
+  }
+  
+  try {
+    await saveFeedback(activityId, msg.from.username, feedbackMessage, chatId);
+    bot.sendMessage(chatId, "Merci pour votre feedback!");
+  } catch (error) {
+    console.error('Error saving feedback:', error);
+    bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'enregistrement du feedback.");
+  }
+},
 
   history: async (msg) => {
     const chatId = msg.chat.id;
