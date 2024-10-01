@@ -1,10 +1,26 @@
 import { bot } from '../config/bot.js';
-import { saveActivity, getActivity, updateActivity, getAllActivities, getCompletedActivities } from '../services/activityService.js';
-import { createTeam, addToTeam, getTeamRanking } from '../services/teamService.js';
-import { generateStatistics, generateGraph } from '../services/statisticsService.js';
-import { exportActivityData } from '../services/exportService.js';
-import { saveFeedback } from '../services/feedbackService.js';
-import { startTimer, stopTimer } from '../services/timeService.js';
+import * as activityService from '../services/activityService.js';
+import * as teamService from '../services/teamService.js';
+import * as statisticsService from '../services/statisticsService.js';
+import * as exportService from '../services/exportService.js';
+import * as feedbackService from '../services/feedbackService.js';
+import * as timeService from '../services/timeService.js';
+
+
+// Fonction utilitaire pour gérer les erreurs
+const handleError = (chatId, error) => {
+  console.error('Error:', error);
+  bot.sendMessage(chatId, "Une erreur s'est produite. Veuillez réessayer plus tard.");
+};
+
+// Fonction utilitaire pour valider les paramètres
+const validateParams = (chatId, params, expectedCount) => {
+  if (params.length !== expectedCount) {
+    bot.sendMessage(chatId, `Nombre de paramètres incorrect. Attendu : ${expectedCount}`);
+    return false;
+  }
+  return true;
+};
 
 
 const commands = {
@@ -47,7 +63,7 @@ Bon jeu !
       scores: {},
       duration: { type: 'indefinite' }
     };
-    const result = await saveActivity(newActivity, chatId);
+    const result = await activityService.saveActivity(newActivity, chatId);
     bot.sendMessage(chatId, `Activité "${activityName}" créée avec succès! Son ID est ${result._id}`);
   } catch (error) {
     console.error('Error creating activity:', error);
@@ -57,21 +73,24 @@ Bon jeu !
 
   addparticipant: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [ activityId, participantName] = match;
+    const [activityId, participantName] = match.slice(1);
+    
+    if (!validateParams(chatId, [activityId, participantName], 2)) return;
+
     
     if (!activityId || !participantName) {
       return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et le nom du participant.");
     }
     
     try {
-      const activity = await getActivity(activityId);
+      const activity = await activityService.getActivity(activityId);
       if (!activity) {
         return bot.sendMessage(chatId, "Activité non trouvée.");
       }
       
       activity.participants.push(participantName);
       activity.scores[participantName] = 0;
-      await updateActivity(activityId, { participants: activity.participants, scores: activity.scores });
+      await activityService.updateActivity(activityId, { participants: activity.participants, scores: activity.scores });
       bot.sendMessage(chatId, `${participantName} a été ajouté à l'activité "${activity.name}".`);
     } catch (error) {
       console.error('Error adding participant:', error);
@@ -79,120 +98,64 @@ Bon jeu !
     }
   },
 
-  addsubactivity: async (msg, match) => {
+ addsubactivity: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [, activityId, subActivityName] = match;
+    const [activityId, subActivityName] = match.slice(1);
     
-    if (!activityId || !subActivityName) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et le nom de la sous-activité.");
-    }
+    if (!validateParams(chatId, [activityId, subActivityName], 2)) return;
     
     try {
-      const activity = await getActivity(activityId);
-      if (!activity) {
-        return bot.sendMessage(chatId, "Activité non trouvée.");
-      }
-      
-      activity.subActivities.push({ name: subActivityName, scores: {} });
-      await updateActivity(activityId, { subActivities: activity.subActivities });
-      bot.sendMessage(chatId, `Sous-activité "${subActivityName}" ajoutée à l'activité "${activity.name}".`);
+      await activityService.addSubActivity(activityId, subActivityName, chatId);
+      bot.sendMessage(chatId, `Sous-activité "${subActivityName}" ajoutée avec succès.`);
     } catch (error) {
-      console.error('Error adding sub-activity:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'ajout de la sous-activité.");
+      handleError(chatId, error);
     }
   },
 
-  score: async (msg, match) => {
+ score: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [, activityId, participantName, score] = match;
+    const [activityId, participantName, score] = match.slice(1);
     
-    if (!activityId || !participantName || !score) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité, le nom du participant et le score.");
-    }
+    if (!validateParams(chatId, [activityId, participantName, score], 3)) return;
     
     try {
-      const activity = await getActivity(activityId);
-      if (!activity) {
-        return bot.sendMessage(chatId, "Activité non trouvée.");
-      }
-      
-      if (!activity.participants.includes(participantName)) {
-        return bot.sendMessage(chatId, "Participant non trouvé dans cette activité.");
-      }
-      
-      activity.scores[participantName] = parseInt(score);
-      await updateActivity(activityId, { scores: activity.scores });
-      bot.sendMessage(chatId, `Score de ${score} attribué à ${participantName} pour l'activité "${activity.name}".`);
+      await activityService.addScore(activityId, participantName, null, parseInt(score), chatId);
+      bot.sendMessage(chatId, `Score de ${score} attribué à ${participantName}.`);
     } catch (error) {
-      console.error('Error scoring:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'attribution du score.");
+      handleError(chatId, error);
     }
-    },
+  },
   
-    subscore: async (msg, match) => {
+   subscore: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [, activityId, subActivityName, participantName, score] = match;
+    const [activityId, subActivityName, participantName, score] = match.slice(1);
     
-    if (!activityId || !subActivityName || !participantName || !score) {
-      return bot.sendMessage(chatId, "Veuillez fournir tous les paramètres nécessaires.");
-    }
+    if (!validateParams(chatId, [activityId, subActivityName, participantName, score], 4)) return;
     
     try {
-      const activity = await getActivity(activityId);
-      if (!activity) {
-        return bot.sendMessage(chatId, "Activité non trouvée.");
-      }
-      
-      const subActivity = activity.subActivities.find(sa => sa.name === subActivityName);
-      
-      if (!subActivity) {
-        return bot.sendMessage(chatId, "Sous-activité non trouvée.");
-      }
-      
-      if (!activity.participants.includes(participantName)) {
-        return bot.sendMessage(chatId, "Participant non trouvé dans cette activité.");
-      }
-      
-      subActivity.scores[participantName] = parseInt(score);
-      await updateActivity(activityId, { subActivities: activity.subActivities });
+      await activityService.addScore(activityId, participantName, subActivityName, parseInt(score), chatId);
       bot.sendMessage(chatId, `Score de ${score} attribué à ${participantName} pour ${subActivityName}.`);
     } catch (error) {
-      console.error('Error scoring sub-activity:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'attribution du score pour la sous-activité.");
+      handleError(chatId, error);
     }
   },
 
-  ranking: async (msg, match) => {
+ranking: async (msg, match) => {
     const chatId = msg.chat.id;
     const activityId = match[1];
     
-    if (!activityId) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité.");
-    }
+    if (!validateParams(chatId, [activityId], 1)) return;
     
     try {
-      const activity = await getActivity(activityId);
-      if (!activity) {
-        return bot.sendMessage(chatId, "Activité non trouvée.");
-      }
-      
-      let totalScores = { ...activity.scores };
-      activity.subActivities.forEach(sa => {
-        Object.entries(sa.scores).forEach(([participant, score]) => {
-          totalScores[participant] = (totalScores[participant] || 0) + score;
-        });
-      });
-      
-      let ranking = Object.entries(totalScores)
+      const activity = await activityService.getActivity(activityId, chatId);
+      const ranking = Object.entries(activity.scores)
         .sort((a, b) => b[1] - a[1])
         .map(([name, score], index) => `${index + 1}. ${name}: ${score}`);
-      
       bot.sendMessage(chatId, `Classement pour "${activity.name}":\n\n${ranking.join('\n')}`);
     } catch (error) {
-      console.error('Error getting ranking:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la récupération du classement.");
+      handleError(chatId, error);
     }
-    },
+  },
   
     subranking: async (msg, match) => {
     const chatId = msg.chat.id;
@@ -228,66 +191,58 @@ Bon jeu !
   activities: async (msg) => {
     const chatId = msg.chat.id;
     try {
-      const activities = await getAllActivities();
+      const activities = await activityService.getAllActivities(chatId);
       if (activities.length === 0) {
         return bot.sendMessage(chatId, "Aucune activité n'a été créée.");
       }
       const activityList = activities.map(a => `${a.name} (ID: ${a._id})`).join('\n');
       bot.sendMessage(chatId, `Liste des activités:\n\n${activityList}`);
     } catch (error) {
-      console.error('Error listing activities:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la récupération des activités.");
+      handleError(chatId, error);
     }
   },
 
-createteam: async (msg, match) => {
-  const chatId = msg.chat.id;
-  const [, activityId, teamName] = match;
-  
-  if (!activityId || !teamName) {
-    return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et le nom de l'équipe.");
-  }
-  
-  try {
-    await createTeam(activityId, teamName, chatId);
-    bot.sendMessage(chatId, `Équipe "${teamName}" créée avec succès!`);
-  } catch (error) {
-    console.error('Error creating team:', error);
-    bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la création de l'équipe.");
-  }
-},
+
+  createteam: async (msg, match) => {
+    const chatId = msg.chat.id;
+    const [activityId, teamName] = match.slice(1);
+    
+    if (!validateParams(chatId, [activityId, teamName], 2)) return;
+    
+    try {
+      await teamService.createTeam(activityId, teamName, chatId);
+      bot.sendMessage(chatId, `Équipe "${teamName}" créée avec succès!`);
+    } catch (error) {
+      handleError(chatId, error);
+    }
+  },
 
   addtoteam: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [, teamId, participantName] = match;
+    const [activityId, teamName, participantName] = match.slice(1);
     
-    if (!teamId || !participantName) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'équipe et le nom du participant.");
-    }
+    if (!validateParams(chatId, [activityId, teamName, participantName], 3)) return;
     
     try {
-      await addToTeam(teamId, participantName);
-      bot.sendMessage(chatId, `${participantName} a été ajouté à l'équipe.`);
+      await teamService.addToTeam(activityId, teamName, participantName, chatId);
+      bot.sendMessage(chatId, `${participantName} a été ajouté à l'équipe "${teamName}".`);
     } catch (error) {
-      console.error('Error adding to team:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'ajout du participant à l'équipe.");
+      handleError(chatId, error);
     }
   },
-
+  
   teamranking: async (msg, match) => {
     const chatId = msg.chat.id;
     const activityId = match[1];
     
-    if (!activityId) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité.");
-    }
+    if (!validateParams(chatId, [activityId], 1)) return;
     
     try {
-      const ranking = await getTeamRanking(activityId);
-      bot.sendMessage(chatId, `Classement des équipes:\n\n${ranking.join('\n')}`);
+      const ranking = await teamService.getTeamRanking(activityId, chatId);
+      const rankingString = ranking.map(({rank, name, score}) => `${rank}. ${name}: ${score}`).join('\n');
+      bot.sendMessage(chatId, `Classement des équipes:\n\n${rankingString}`);
     } catch (error) {
-      console.error('Error getting team ranking:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la récupération du classement des équipes.");
+      handleError(chatId, error);
     }
   },
 
@@ -295,18 +250,15 @@ createteam: async (msg, match) => {
     const chatId = msg.chat.id;
     const activityId = match[1];
     
-    if (!activityId) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité.");
-    }
+    if (!validateParams(chatId, [activityId], 1)) return;
     
     try {
-      const stats = await generateStatistics(activityId);
-      const graph = await generateGraph(activityId);
+      const stats = await statisticsService.generateStatistics(activityId, chatId);
+      const graph = await statisticsService.generateGraph(activityId, chatId);
       bot.sendMessage(chatId, `Statistiques de l'activité:\n\n${stats}`);
       bot.sendPhoto(chatId, graph);
     } catch (error) {
-      console.error('Error generating stats:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la génération des statistiques.");
+      handleError(chatId, error);
     }
   },
 
@@ -314,63 +266,54 @@ createteam: async (msg, match) => {
     const chatId = msg.chat.id;
     const activityId = match[1];
     
-    if (!activityId) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité.");
-    }
+    if (!validateParams(chatId, [activityId], 1)) return;
     
     try {
-      const exportData = await exportActivityData(activityId);
+      const exportData = await exportService.exportActivityData(activityId, chatId);
       bot.sendDocument(chatId, Buffer.from(JSON.stringify(exportData)), {
         filename: `activity_${activityId}_export.json`
       });
     } catch (error) {
-      console.error('Error exporting data:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'exportation des données.");
+      handleError(chatId, error);
     }
   },
 
-feedback: async (msg, match) => {
-  const chatId = msg.chat.id;
-  const [, activityId, feedbackMessage] = match;
-  
-  if (!activityId || !feedbackMessage) {
-    return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et votre feedback.");
-  }
-  
-  try {
-    await saveFeedback(activityId, msg.from.username, feedbackMessage, chatId);
-    bot.sendMessage(chatId, "Merci pour votre feedback!");
-  } catch (error) {
-    console.error('Error saving feedback:', error);
-    bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'enregistrement du feedback.");
-  }
-},
+  feedback: async (msg, match) => {
+    const chatId = msg.chat.id;
+    const [activityId, feedbackMessage] = match.slice(1);
+    
+    if (!validateParams(chatId, [activityId, feedbackMessage], 2)) return;
+    
+    try {
+      await feedbackService.saveFeedback(activityId, msg.from.username, feedbackMessage, chatId);
+      bot.sendMessage(chatId, "Merci pour votre feedback!");
+    } catch (error) {
+      handleError(chatId, error);
+    }
+  },
 
   history: async (msg) => {
     const chatId = msg.chat.id;
     try {
-      const history = await getCompletedActivities();
-      bot.sendMessage(chatId, `Historique des activités terminées:\n\n${history.join('\n')}`);
+      const history = await activityService.getCompletedActivities(chatId);
+      const historyString = history.map(a => `${a.name} (ID: ${a._id})`).join('\n');
+      bot.sendMessage(chatId, `Historique des activités terminées:\n\n${historyString}`);
     } catch (error) {
-      console.error('Error getting activity history:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de la récupération de l'historique des activités.");
+      handleError(chatId, error);
     }
   },
 
   starttimer: async (msg, match) => {
     const chatId = msg.chat.id;
-    const [, activityId, duration] = match;
+    const [activityId, duration] = match.slice(1);
     
-    if (!activityId || !duration) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité et la durée en minutes.");
-    }
+    if (!validateParams(chatId, [activityId, duration], 2)) return;
     
     try {
-      await startTimer(activityId, parseInt(duration));
+      await timeService.startTimer(activityId, parseInt(duration), chatId);
       bot.sendMessage(chatId, `Minuteur démarré pour ${duration} minutes.`);
     } catch (error) {
-      console.error('Error starting timer:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors du démarrage du minuteur.");
+      handleError(chatId, error);
     }
   },
 
@@ -378,22 +321,20 @@ feedback: async (msg, match) => {
     const chatId = msg.chat.id;
     const activityId = match[1];
     
-    if (!activityId) {
-      return bot.sendMessage(chatId, "Veuillez fournir l'ID de l'activité.");
-    }
+    if (!validateParams(chatId, [activityId], 1)) return;
     
     try {
-      await stopTimer(activityId);
+      await timeService.stopTimer(activityId, chatId);
       bot.sendMessage(chatId, "Minuteur arrêté.");
     } catch (error) {
-      console.error('Error stopping timer:', error);
-      bot.sendMessage(chatId, "Désolé, une erreur s'est produite lors de l'arrêt du minuteur.");
+      handleError(chatId, error);
     }
   },
 
-help: async (msg) => {
-  const chatId = msg.chat.id;
-  const helpMessage = `
+
+  help: async (msg) => {
+    const chatId = msg.chat.id;
+    const helpMessage = `
 Guide utilisateur Scory Bot
 
 Commandes principales :
@@ -426,9 +367,9 @@ Outils supplémentaires :
 /stoptimer - Arrêter le minuteur
 
 Astuce : Pour les noms avec espaces, utilisez des guillemets. Ex : /createactivity "Course de relais"
-  `;
-  bot.sendMessage(chatId, helpMessage);
-},
+    `;
+    bot.sendMessage(chatId, helpMessage);
+  },
 };
 
 export const setupCommands = () => {
@@ -436,11 +377,12 @@ export const setupCommands = () => {
   bot.onText(/\/createactivity (.+)/, commands.createactivity);
   bot.onText(/\/addparticipant (\S+) (.+)/, commands.addparticipant);
   bot.onText(/\/addsubactivity (\S+) (.+)/, commands.addsubactivity);
-  bot.onText(/\/score (\S+) (\S+) (\S+) (\d+)/, commands.score);
+  bot.onText(/\/score (\S+) (\S+) (\d+)/, commands.score);
+  bot.onText(/\/subscore (\S+) (\S+) (\S+) (\d+)/, commands.subscore);
   bot.onText(/\/ranking (\S+)/, commands.ranking);
   bot.onText(/\/activities/, commands.activities);
-  bot.onText(/\/createteam (.+)/, commands.createteam);
-  bot.onText(/\/addtoteam (\S+) (.+)/, commands.addtoteam);
+  bot.onText(/\/createteam (\S+) (.+)/, commands.createteam);
+  bot.onText(/\/addtoteam (\S+) (\S+) (.+)/, commands.addtoteam);
   bot.onText(/\/teamranking (\S+)/, commands.teamranking);
   bot.onText(/\/stats (\S+)/, commands.stats);
   bot.onText(/\/export (\S+)/, commands.export);

@@ -1,13 +1,29 @@
 import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
+// Charger les variables d'environnement
 dotenv.config();
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
-export const bot = new TelegramBot(token, { polling: true });
+if (!token) {
+  console.error('TELEGRAM_BOT_TOKEN is not set in the environment variables');
+  process.exit(1);
+}
 
-bot.setMyCommands([
+// Options du bot
+const botOptions = {
+  polling: true,
+  // Vous pouvez ajouter d'autres options ici si nécessaire
+};
+
+// Créer le bot
+export const bot = new TelegramBot(token, botOptions);
+
+// Définir les commandes du bot
+const commands = [
   { command: '/start', description: 'Démarrer le bot' },
   { command: '/createactivity', description: 'Créer une nouvelle activité' },
   { command: '/addparticipant', description: 'Ajouter un participant à une activité' },
@@ -27,4 +43,46 @@ bot.setMyCommands([
   { command: '/starttimer', description: 'Démarrer un minuteur pour une activité' },
   { command: '/stoptimer', description: "Arrêter le minuteur d'une activité" },
   { command: '/help', description: "Afficher l'aide" }
-]);
+];
+
+// Fonction pour configurer le bot
+export async function setupBot() {
+  try {
+    // Définir les commandes du bot
+    await bot.setMyCommands(commands);
+    console.log('Bot commands set successfully');
+
+    // Configurer les gestionnaires d'erreurs
+    bot.on('polling_error', (error) => {
+      console.error('Polling error:', error);
+    });
+
+    bot.on('error', (error) => {
+      console.error('Bot error:', error);
+    });
+
+    console.log('Bot setup completed successfully');
+  } catch (error) {
+    console.error('Error setting up bot:', error);
+    throw error;
+  }
+}
+
+// Fonction pour obtenir la liste des commandes
+export function getCommands() {
+  return commands;
+}
+
+// Fonction pour sauvegarder les commandes dans un fichier JSON
+export function saveCommandsToFile() {
+  const commandsJson = JSON.stringify(commands, null, 2);
+  const filePath = path.join(process.cwd(), 'bot_commands.json');
+  
+  fs.writeFile(filePath, commandsJson, (err) => {
+    if (err) {
+      console.error('Error saving commands to file:', err);
+    } else {
+      console.log('Commands saved to bot_commands.json');
+    }
+  });
+}
